@@ -469,11 +469,12 @@ impl<'pool, FLBitmap: BinInteger, SLBitmap: BinInteger, const FLLEN: usize, cons
         let len = nonnull_slice_len(block);
 
         // Round up the starting address
-        let unaligned_start = block.as_ptr() as *mut u8 as usize;
-        let start = unaligned_start.wrapping_add(GRANULARITY - 1) & !(GRANULARITY - 1);
+        let unaligned_start = block.as_ptr() as *mut u8;
+        let aligned_start = (unaligned_start as usize).wrapping_add(GRANULARITY - 1) & !(GRANULARITY - 1);
+        let start = unaligned_start.add(aligned_start - (unaligned_start as usize));
 
         let len = if let Some(x) = len
-            .checked_sub(start.wrapping_sub(unaligned_start))
+            .checked_sub(aligned_start.wrapping_sub(unaligned_start as usize))
             .filter(|&x| x >= GRANULARITY * 2)
         {
             // Round down
@@ -485,13 +486,13 @@ impl<'pool, FLBitmap: BinInteger, SLBitmap: BinInteger, const FLLEN: usize, cons
 
         // Safety: The slice being created here
         let pool_len = self.insert_free_block_ptr_aligned(NonNull::new_unchecked(
-            core::ptr::slice_from_raw_parts_mut(start as *mut u8, len),
+            core::ptr::slice_from_raw_parts_mut(start, len),
         ))?;
 
         // Safety: The sum should not wrap around because it represents the size
         //         of a memory pool on memory
         Some(NonZeroUsize::new_unchecked(
-            pool_len.get() + start.wrapping_sub(unaligned_start),
+            pool_len.get() + start.wrapping_sub(unaligned_start as usize) as usize,
         ))
     }
 
