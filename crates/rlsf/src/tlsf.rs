@@ -174,6 +174,13 @@ struct UsedBlockHdr {
     common: BlockHdr,
 }
 
+unsafe fn checked_add<T>(ptr: *mut T, length: usize) -> Option<*mut T> {
+    match (ptr as usize).checked_add(length) {
+        Some(_) => Some(ptr.add(length)),
+        None => None,
+    }
+}
+
 /// In a used memory block with an alignment requirement larger than or equal to
 /// `GRANULARITY`, the payload is preceded by this structure.
 #[derive(Debug)]
@@ -493,7 +500,7 @@ impl<'pool, FLBitmap: BinInteger, SLBitmap: BinInteger, const FLLEN: usize, cons
         &mut self,
         block: NonNull<[u8]>,
     ) -> Option<NonZeroUsize> {
-        let start = block.as_ptr() as *mut u8 as usize;
+        let start = block.as_ptr() as *mut u8;
         let mut size = nonnull_slice_len(block);
 
         let mut cursor = start;
@@ -534,12 +541,12 @@ impl<'pool, FLBitmap: BinInteger, SLBitmap: BinInteger, const FLLEN: usize, cons
 
             // `cursor` can reach `usize::MAX + 1`, but in such a case, this
             // iteration must be the last one
-            debug_assert!(cursor.checked_add(chunk_size).is_some() || size == chunk_size);
+            debug_assert!(checked_add(cursor, chunk_size).is_some() || size == chunk_size);
             size -= chunk_size;
             cursor = cursor.wrapping_add(chunk_size);
         }
 
-        NonZeroUsize::new(cursor.wrapping_sub(start))
+        NonZeroUsize::new(cursor.wrapping_sub(start as usize) as usize)
     }
 
     /// Extend an existing memory pool by incorporating the specified memory
